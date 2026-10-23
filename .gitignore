@@ -1,0 +1,5 @@
+dados-locais/
+*.xlsx
+*.pdf
+.claude/
+__pycache__/

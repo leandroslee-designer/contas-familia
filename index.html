@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contas da Família</title>
+<meta name="description" content="Controle financeiro mensal da família: contas fixas, cartões, faturas e hábitos de gasto.">
+<meta name="theme-color" content="#6250d6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=6">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-logo">🏡</span><div><b>Contas</b><small>da Família</small></div></div>
+    <nav class="side-nav" id="sideNav"></nav>
+    <div class="side-foot" id="syncBadge"></div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title" id="pageTitle">Início</div>
+      <div class="month-switch" id="monthSwitch">
+        <button class="icon-btn" data-act="prev-month" aria-label="Mês anterior">‹</button>
+        <button class="month-label" data-act="pick-month" id="monthLabel"></button>
+        <button class="icon-btn" data-act="next-month" aria-label="Próximo mês">›</button>
+      </div>
+    </header>
+    <div id="banner"></div>
+    <section class="view" id="view"></section>
+  </main>
+</div>
+<nav class="bottom-nav" id="bottomNav"></nav>
+<div class="sheet-backdrop" id="sheetBackdrop"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast"></div>
+<script src="js/dados.js?v=6"></script>
+<script src="js/fatura.js?v=6"></script>
+<script src="js/graficos.js?v=6"></script>
+<script src="js/config.js?v=6"></script>
+<script src="js/nuvem.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
+</body>
+</html>
