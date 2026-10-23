@@ -261,6 +261,14 @@
   }
 
   function boasVindas() {
+    const N = window.NUVEM;
+    if (N.configurado() && !N.usuario) {
+      setTimeout(() => { const b = document.getElementById("bvEntrar"); if (b) b.onclick = () => N.entrar(); });
+      return `<div class="hero"><div class="label">Bem-vindos 👋</div><div class="big" style="font-size:30px">Contas da Família</div>
+        <p style="opacity:.9;max-width:560px">Entre com a sua conta Google para ver as contas da família neste aparelho. Tudo o que for lançado aparece no celular e no computador.</p>
+        <div class="hero-actions"><button class="btn" id="bvEntrar">Entrar com Google</button></div></div>`;
+    }
+    if (N.estado === "conectando") return `<div class="card empty"><div class="e-ico">☁️</div>Buscando os dados da família…</div>`;
     return `<div class="hero"><div class="label">Bem-vindos 👋</div><div class="big" style="font-size:30px">Contas da Família</div>
       <p style="opacity:.9;max-width:560px">Para começar, traga o histórico da planilha (Ajustes → Dados → Importar histórico) ou lance o primeiro gasto. Os dados ficam salvos neste aparelho.</p>
       <div class="hero-actions"><button class="btn" data-go="ajustes">Trazer histórico da planilha</button><button class="btn ghost" data-act="novo">＋ Primeiro lançamento</button></div></div>`;
@@ -996,7 +1004,7 @@
     const e = el.querySelector("#nEntrar"); if (e) e.onclick = () => N.entrar();
     const s = el.querySelector("#nSair"); if (s) s.onclick = () => { if (confirm("Sair? Os dados continuam neste aparelho, mas param de sincronizar.")) N.sair(); };
   }
-  window.NUVEM.onChange(() => { cartaoNuvem(); statusArquivo(); });
+  window.NUVEM.onChange(() => { cartaoNuvem(); statusArquivo(); if (ui.page === "inicio" && !D.state.tx.length) render(); });
 
   function baixar(nome, conteudo, tipo) {
     const a = document.createElement("a");

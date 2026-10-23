@@ -293,8 +293,8 @@ details.tbl summary { cursor: pointer; color: var(--primary); font-weight: 700; 
   .hero { padding: 20px; border-radius: 24px; }
   .hero .big { font-size: 34px; }
   .hero .sub { gap: 6px; margin-top: 10px; }
-  .hero-actions { flex-wrap: nowrap; gap: 8px; margin-top: 14px; }
-  .hero-actions .btn { flex: 1; padding: 11px 10px; font-size: 14px; }
+  .hero-actions { gap: 8px; margin-top: 14px; }
+  .hero-actions .btn { flex: 1 1 140px; padding: 11px 10px; font-size: 14px; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stats { gap: 8px; }
   .stats .card { padding: 12px; border-radius: 16px; }
