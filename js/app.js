@@ -502,14 +502,8 @@
           <div class="row between small" style="margin-top:10px"><span class="muted">Faltam ${Math.max(0, of - n)} × ${U.brl(valor)}</span><b class="num">${U.brl(Math.max(0, of - n) * valor)}</b></div>
           <div class="small muted">Termina em ${U.nomeMes(U.addMes(m, of - n))}</div></div>`;
       }).join("")}</div>` : ""}
-      <div class="section-title">Acertos e dívidas</div>
-      <div class="grid g2">${D.state.debts.map(d => {
-        const pago = d.pays.reduce((s, p) => s + p.amount, 0);
-        return `<div class="card"><h3>${U.esc(d.name)} <small>${U.brl(d.total)}</small></h3><div class="bar good"><i style="width:${Math.min(100, pago / d.total * 100)}%"></i></div>
-          <div class="row between small" style="margin-top:10px"><span class="muted">Pago ${U.brl(pago)}</span><b>Falta ${U.brl(d.total - pago)}</b></div>
-          <div class="small muted" style="margin-top:6px">${d.pays.map(p => `${p.date.split("-").reverse().slice(0, 2).join("/")}: ${U.brl(p.amount, false)}`).join(" · ")}</div>
-          <div class="row" style="margin-top:12px"><button class="btn soft sm" data-pag-div="${d.id}">＋ Registrar pagamento</button><button class="btn ghost sm" data-del-div="${d.id}">Remover</button></div></div>`;
-      }).join("")}
+      <div class="section-title">Acertos e dívidas <span class="tag" style="text-transform:none;letter-spacing:0">não entram no total do mês</span></div>
+      <div class="grid g2">${D.state.debts.map(d => cartaoDivida(d, m)).join("")}
       <button class="card" id="novaDiv" style="border:2px dashed var(--line);box-shadow:none;background:transparent;color:var(--text-2);font-weight:700">＋ Novo acerto / dívida</button></div>`;
     v.querySelectorAll("[data-pagar]").forEach(b => b.onclick = () => {
       const t = D.state.tx.find(x => x.id === b.dataset.pagar); t.paid = !t.paid; if (t.paid) t.status = "confirmado"; D.save(); render();
@@ -522,9 +516,18 @@
     v.querySelector("#novaFixa").onclick = nf;
     const nf2 = v.querySelector("#novaFixa2"); if (nf2) nf2.onclick = nf;
     v.querySelector("#gerRec").onclick = gerenciarFixas;
-    v.querySelector("#novaDiv").onclick = () => editarDivida();
+    v.querySelector("#novaDiv").onclick = () => editarDivida(null);
     v.querySelectorAll("[data-pag-div]").forEach(b => b.onclick = () => pagarDivida(b.dataset.pagDiv));
-    v.querySelectorAll("[data-del-div]").forEach(b => b.onclick = () => { if (confirm("Remover este acerto?")) { D.state.debts = D.state.debts.filter(d => d.id !== b.dataset.delDiv); D.save(); render(); } });
+    v.querySelectorAll("[data-edit-div]").forEach(b => b.onclick = () => editarDivida(D.state.debts.find(d => d.id === b.dataset.editDiv)));
+    v.querySelectorAll("[data-feito]").forEach(b => b.onclick = () => {
+      const d = D.state.debts.find(x => x.id === b.dataset.feito); d.feitos = d.feitos || [];
+      d.feitos = d.feitos.includes(m) ? d.feitos.filter(x => x !== m) : [...d.feitos, m];
+      D.save(); render();
+    });
+    v.querySelectorAll("[data-del-pay]").forEach(b => b.onclick = () => {
+      const [id, i] = b.dataset.delPay.split(":"); const d = D.state.debts.find(x => x.id === id);
+      if (confirm("Apagar este registro?")) { d.pays.splice(+i, 1); D.save(); render(); }
+    });
   }
 
   function gerenciarFixas() {
@@ -575,20 +578,86 @@
     };
   }
 
-  function editarDivida() {
-    const s = abrirSheet(cabecaSheet("Novo acerto / dívida") + `
-      <div class="field"><label>Descrição</label><input class="input" id="dNome" placeholder="Ex.: Empréstimo de um parente"></div>
-      <div class="field"><label>Valor total</label><input class="input num" id="dTot" inputmode="decimal"></div>
-      <div class="sheet-actions"><button class="btn" id="dOk">Salvar</button></div>`);
+  // ---------- acertos e dívidas ----------
+  // dir: "pagar" (a família deve) ou "receber" (devem à família). kind "parcelado" = parcelas mensais fora das contas.
+  const palavras = d => d.dir === "receber"
+    ? { feito: "Recebido", falta: "Falta receber", btn: "＋ Registrar recebimento", tag: "a receber", tom: "g" }
+    : { feito: "Pago", falta: "Falta pagar", btn: "＋ Registrar pagamento", tag: "a pagar", tom: "w" };
+  const dataBR = d => d ? d.split("-").reverse().slice(0, 2).join("/") + "/" + d.slice(2, 4) : "";
+
+  function cartaoDivida(d, m) {
+    if (d.kind === "parcelado") {
+      const n = d.n + U.difMes(d.mes, m), of = d.of, fora = U.round(d.parcela - (d.dentro || 0));
+      const atual = Math.min(Math.max(n, 1), of), faltam = Math.max(0, of - n), feito = (d.feitos || []).includes(m);
+      return `<div class="card"><h3>${U.esc(d.name)} <small>${atual} de ${of}</small></h3>
+        <div class="bar"><i style="width:${Math.min(100, atual / of * 100)}%"></i></div>
+        <div class="row between small" style="margin-top:10px"><span class="muted">Parcela de ${U.nomeMes(m, true)}</span><b class="num">${U.brl(d.parcela)}</b></div>
+        ${d.dentro ? `<div class="row between small"><span class="muted">Dentro das contas da casa</span><span class="num">${U.brl(d.dentro)}</span></div>` : ""}
+        <div class="row between small"><span class="muted">Pago por fora${d.quem ? " (" + U.esc(d.quem) + ")" : ""}</span><b class="num">${U.brl(fora)}</b></div>
+        ${fora > 0 && n >= 1 && n <= of ? `<label class="row small" style="margin:10px 0 0;cursor:pointer"><input type="checkbox" data-feito="${d.id}" ${feito ? "checked" : ""} style="width:20px;height:20px;accent-color:var(--good)"> Repasse de ${U.nomeMes(m, true)} feito</label>` : ""}
+        <div class="row between small" style="margin-top:10px"><span class="muted">Faltam ${faltam} × ${U.brl(d.parcela)}</span><b class="num">${U.brl(faltam * d.parcela)}</b></div>
+        <div class="small muted">${faltam ? "Termina em " + U.nomeMes(U.addMes(m, faltam)) : "Quitado"}${d.nota ? " · " + U.esc(d.nota) : ""}</div>
+        <div class="row" style="margin-top:12px"><button class="btn ghost sm" data-edit-div="${d.id}">Editar</button></div></div>`;
+    }
+    const w = palavras(d), pago = d.pays.reduce((x, p) => x + p.amount, 0), falta = U.round(d.total - pago);
+    return `<div class="card"><h3><span>${U.esc(d.name)} <span class="tag ${w.tom}">${w.tag}</span></span> <small>${U.brl(d.total)}</small></h3>
+      <div class="bar good"><i style="width:${Math.min(100, d.total ? pago / d.total * 100 : 0)}%"></i></div>
+      <div class="row between small" style="margin-top:10px"><span class="muted">${w.feito} ${U.brl(pago)}</span><b>${falta > 0 ? w.falta + " " + U.brl(falta) : "Quitado ✓"}</b></div>
+      ${d.pays.length ? `<div class="chips" style="margin-top:8px;flex-wrap:wrap">${d.pays.map((p, i) => `<span class="chip" style="box-shadow:none;background:var(--surface-3)">${dataBR(p.date)} · ${U.brl(p.amount, false)} <button data-del-pay="${d.id}:${i}" aria-label="Apagar" style="margin-left:2px;color:var(--text-3)">✕</button></span>`).join("")}</div>` : ""}
+      ${d.nota ? `<div class="small muted" style="margin-top:6px">${U.esc(d.nota)}</div>` : ""}
+      <div class="row" style="margin-top:12px"><button class="btn soft sm" data-pag-div="${d.id}">${w.btn}</button><button class="btn ghost sm" data-edit-div="${d.id}">Editar</button></div></div>`;
+  }
+
+  function editarDivida(d) {
+    const novo = !d;
+    const f = d ? JSON.parse(JSON.stringify(d)) : { id: U.uid(), kind: "emprestimo", dir: "pagar", name: "", total: 0, pays: [] };
+    const num = v => v ? String(v).replace(".", ",") : "";
+    const nAtual = f.kind === "parcelado" ? f.n + U.difMes(f.mes, ui.month) : "";
+    const s = abrirSheet(cabecaSheet(novo ? "Novo acerto / dívida" : "Editar acerto") + `
+      ${novo ? `<div class="field"><span class="lbl">Tipo</span><div class="seg" id="dKind"><button type="button" class="on" data-v="emprestimo">Valor total (empréstimo)</button><button type="button" data-v="parcelado">Parcelas mensais</button></div></div>` : ""}
+      <div class="field"><label>Descrição</label><input class="input" id="dNome" value="${U.esc(f.name)}" placeholder="Ex.: Empréstimo da Fabiane para a Edna"></div>
+      <div id="dEmp">
+        <div class="field"><span class="lbl">Quem deve a quem</span><div class="seg" id="dDir"><button type="button" class="${f.dir !== "receber" ? "on" : ""}" data-v="pagar">Nós devemos (a pagar)</button><button type="button" class="${f.dir === "receber" ? "on" : ""}" data-v="receber">Devem a nós (a receber)</button></div></div>
+        <div class="field"><label>Valor total</label><input class="input num" id="dTot" inputmode="decimal" value="${num(f.total)}"></div>
+      </div>
+      <div id="dPar" hidden>
+        <div class="two"><div class="field"><label>Valor da parcela</label><input class="input num" id="dParc" inputmode="decimal" value="${num(f.parcela)}"></div>
+        <div class="field"><label>Parte nas contas da casa</label><input class="input num" id="dDentro" inputmode="decimal" value="${num(f.dentro)}" placeholder="0"></div></div>
+        <div class="two"><div class="field"><label>Parcela de ${U.nomeMes(ui.month, true)}</label><input class="input" id="dN" inputmode="numeric" value="${nAtual}" placeholder="ex.: 43"></div>
+        <div class="field"><label>Total de parcelas</label><input class="input" id="dOf" inputmode="numeric" value="${f.of || ""}" placeholder="ex.: 96"></div></div>
+        <div class="field"><label>Quem paga a parte de fora</label><select class="input" id="dQuem"><option value="">—</option>${D.state.people.filter(p => p !== "Família").map(p => `<option ${p === f.quem ? "selected" : ""}>${U.esc(p)}</option>`).join("")}</select></div>
+      </div>
+      <div class="field"><label>Observação</label><input class="input" id="dNota" value="${U.esc(f.nota || "")}" placeholder="opcional"></div>
+      ${f.kind !== "parcelado" && f.pays.length ? `<p class="small muted" style="margin:0">Os pagamentos ou recebimentos já registrados aparecem no cartão; para apagar um, use o ✕ ao lado dele.</p>` : ""}
+      <div class="sheet-actions">${novo ? "" : `<button class="btn danger" id="dDel">Excluir</button>`}<button class="btn" id="dOk">Salvar</button></div>`);
+    const mostrar = () => { s.querySelector("#dEmp").hidden = f.kind === "parcelado"; s.querySelector("#dPar").hidden = f.kind !== "parcelado"; };
+    mostrar();
+    const seg = (sel, campo, depois) => s.querySelectorAll(sel + " [data-v]").forEach(b => b.onclick = () => {
+      s.querySelectorAll(sel + " [data-v]").forEach(x => x.classList.toggle("on", x === b)); f[campo] = b.dataset.v; if (depois) depois();
+    });
+    seg("#dKind", "kind", mostrar); seg("#dDir", "dir");
     s.querySelector("#dOk").onclick = () => {
-      const total = U.numero(s.querySelector("#dTot").value), name = s.querySelector("#dNome").value.trim();
-      if (!total || !name) return toast("Preencha nome e valor");
-      D.state.debts.push({ id: U.uid(), name, total, pays: [] }); D.save(); fecharSheet(); render();
+      f.name = s.querySelector("#dNome").value.trim(); f.nota = s.querySelector("#dNota").value.trim();
+      if (!f.name) return toast("Dê um nome");
+      if (f.kind === "parcelado") {
+        const parcela = U.round(U.numero(s.querySelector("#dParc").value)), n = parseInt(s.querySelector("#dN").value), of = parseInt(s.querySelector("#dOf").value);
+        if (!parcela || !n || !of || n > of) return toast("Confira valor, parcela atual e total de parcelas");
+        Object.assign(f, { parcela, dentro: U.round(U.numero(s.querySelector("#dDentro").value)), n, of, mes: ui.month, quem: s.querySelector("#dQuem").value });
+        delete f.total; f.pays = f.pays || [];
+      } else {
+        const total = U.round(U.numero(s.querySelector("#dTot").value));
+        if (!total) return toast("Informe o valor total");
+        f.total = total;
+      }
+      if (novo) D.state.debts.push(f); else Object.assign(d, f);
+      D.save(); fecharSheet(); render(); toast("Salvo ✓");
     };
+    const del = s.querySelector("#dDel");
+    if (del) del.onclick = () => { if (confirm("Excluir este acerto e todo o histórico dele?")) { D.state.debts = D.state.debts.filter(x => x.id !== d.id); D.save(); fecharSheet(); render(); } };
   }
   function pagarDivida(id) {
     const d = D.state.debts.find(x => x.id === id);
-    const s = abrirSheet(cabecaSheet("Pagamento — " + U.esc(d.name)) + `
+    const s = abrirSheet(cabecaSheet((d.dir === "receber" ? "Recebimento — " : "Pagamento — ") + U.esc(d.name)) + `
       <div class="two"><div class="field"><label>Valor</label><input class="input num" id="pVal" inputmode="decimal"></div>
       <div class="field"><label>Data</label><input class="input" type="date" id="pData" value="${new Date().toISOString().slice(0, 10)}"></div></div>
       <div class="sheet-actions"><button class="btn" id="pOk">Registrar</button></div>`);
