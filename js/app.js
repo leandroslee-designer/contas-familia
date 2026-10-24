@@ -378,6 +378,9 @@
           <option value="confirmado" ${f.status === "confirmado" ? "selected" : ""}>Lançado</option>
           <option value="previsto" ${f.status === "previsto" ? "selected" : ""}>Previsto</option></select></div>
       </div>
+      ${novo ? `<div class="field" id="fModoBox" hidden><span class="lbl">O valor digitado é…</span>
+        <div class="seg" id="fModo"><button type="button" class="on" data-v="total">Total da compra</button><button type="button" data-v="parcela">Valor de cada parcela</button></div>
+        <div class="small muted" id="fModoInfo" style="margin-top:6px"></div></div>` : ""}
       ${f.card === "fixas" || f.recId ? `<label class="row" style="margin-bottom:12px"><input type="checkbox" id="fPago" ${f.paid ? "checked" : ""} style="width:20px;height:20px;accent-color:var(--good)"> Conta paga</label>` : ""}
       <div class="field"><label>Observação</label><input class="input" id="fNota" value="${U.esc(f.note || "")}" placeholder="opcional"></div>
       ${grupoParc ? `<label class="row small" style="margin-bottom:8px"><input type="checkbox" id="fTodas" checked style="accent-color:var(--primary)"> Aplicar às próximas parcelas também</label>` : ""}
@@ -402,9 +405,32 @@
     const ajustarMes = () => { const d = s.querySelector("#fData").value; if (d && novo) s.querySelector("#fMes").value = D.mesDaFatura(f.card, d); };
     s.querySelector("#fData").onchange = ajustarMes;
     if (novo) setTimeout(() => s.querySelector("#fVal").focus(), 250);
+    // Compra parcelada nova (1/N): pergunta se o valor digitado é o total ou o de cada parcela
+    let modo = "total";
+    const parcelaDe = () => { const m = s.querySelector("#fParc").value.match(/(\d+)\s*(?:\/|de)\s*(\d+)/); return m && +m[1] === 1 && +m[2] > 1 ? +m[2] : 0; };
+    const atualizarModo = () => {
+      const box = s.querySelector("#fModoBox"); if (!box) return;
+      const of = parcelaDe(), v = U.numero(s.querySelector("#fVal").value);
+      box.hidden = !of;
+      if (!of) return;
+      s.querySelector("#fModoInfo").textContent = !v ? "" : modo === "total"
+        ? `Cada parcela: ${U.brl(U.round(v / of))} × ${of} (${U.nomeMes(s.querySelector("#fMes").value || ui.month, true)} e mais ${of - 1} meses)`
+        : `Total da compra: ${U.brl(U.round(v * of))} em ${of}× de ${U.brl(v)}`;
+    };
+    s.querySelectorAll("#fModo [data-v]").forEach(b => b.onclick = () => {
+      modo = b.dataset.v; s.querySelectorAll("#fModo [data-v]").forEach(x => x.classList.toggle("on", x === b)); atualizarModo();
+    });
+    ["#fVal", "#fParc", "#fMes"].forEach(q => s.querySelector(q).addEventListener("input", atualizarModo));
     s.querySelector("#fOk").onclick = () => {
-      const amount = U.numero(s.querySelector("#fVal").value);
+      let amount = U.numero(s.querySelector("#fVal").value);
       if (!amount) return toast("Informe o valor");
+      let sobra = 0;
+      const ofParc = novo ? parcelaDe() : 0;
+      if (ofParc && modo === "total") {
+        const parcela = U.round(amount / ofParc);
+        sobra = U.round(amount - parcela * ofParc); // centavos que sobram vão para a última parcela
+        amount = parcela;
+      }
       f.amount = U.round(amount);
       f.desc = desc.value.trim() || cat(f.cat).name;
       f.date = s.querySelector("#fData").value || null;
@@ -415,8 +441,12 @@
       const pm = s.querySelector("#fParc").value.match(/(\d+)\s*(?:\/|de)\s*(\d+)/);
       if (novo) {
         if (pm && +pm[2] > 1) f.inst = { n: +pm[1], of: +pm[2] };
-        D.adicionar(f);
-        toast(f.inst ? `Lançado, com ${f.inst.of - f.inst.n} parcelas futuras` : "Lançado ✓");
+        const criado = D.adicionar(f);
+        if (sobra && criado.inst) {
+          const ultima = D.state.tx.find(x => x.inst && x.inst.group === criado.inst.group && x.inst.n === criado.inst.of);
+          if (ultima) ultima.amount = U.round(ultima.amount + sobra);
+        }
+        toast(f.inst ? `Lançado: ${f.inst.of}× de ${U.brl(f.amount)}, as outras ${f.inst.of - f.inst.n} já previstas` : "Lançado ✓");
       } else {
         const orig = D.state.tx.find(x => x.id === t.id);
         if (pm && !(orig.inst && orig.inst.left)) f.inst = Object.assign({}, orig.inst || {}, { n: +pm[1], of: +pm[2] });

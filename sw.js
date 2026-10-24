@@ -1,5 +1,5 @@
 /* Guarda o app para abrir sem internet. Ao publicar versão nova, troque VERSAO. */
-const VERSAO = "contas-v4";
+const VERSAO = "contas-v5";
 const ARQUIVOS = ["./", "index.html", "styles.css", "js/dados.js", "js/fatura.js", "js/graficos.js", "js/app.js", "js/nuvem.js", "js/config.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSAO).then(c => c.addAll(ARQUIVOS))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSAO).map(k => caches.delete(k))))); self.clients.claim(); });
