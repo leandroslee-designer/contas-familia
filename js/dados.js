@@ -149,32 +149,53 @@
   };
 
   // ---------- lançamentos e parcelas ----------
-  // Cria o lançamento e, se for parcelado, as parcelas futuras como "previsto"
+  // Quantas parcelas faltam contando a do mês (é o número que a planilha guarda ao lado do valor)
+  const restantesDe = x => x.inst ? x.inst.of - x.inst.n + 1 : 0;
+
+  // Garante a parcela k de uma compra parcelada (base = a parcela que já existe, de uma fatura).
+  // 1) se a planilha já lançou essa parcela no mês (mesmo cartão, mesmo valor, mesmo "quantas faltam"),
+  //    a linha da planilha vira a parcela da fatura, sem somar duas vezes;
+  // 2) se a planilha só previu, a previsão ganha o nome da fatura;
+  // 3) senão cria a parcela como "previsto".
+  D.projetarParcela = function (base, k) {
+    const g = base.inst.group, of = base.inst.of, mes = U.addMes(base.month, k - base.inst.n);
+    if (D.state.tx.some(x => x.inst && x.inst.group === g && x.inst.n === k)) return false;
+    // linha da planilha ainda não ligada a uma fatura (as ligadas já perderam o "left")
+    const perto = x => x.month === mes && x.card === base.card && x.source === "planilha" && !(x.inst && !x.inst.left) &&
+      Math.abs(x.amount - base.amount) <= 0.05 && (!x.inst || !x.inst.left || restantesDe(x) === of - k + 1);
+    // a planilha lança "quantas faltam" quando a parcela já está contada; quando o campo fica em 1 ou vazio
+    // (sem número de parcelas), só o valor identifica a compra
+    const lancada = D.state.tx.filter(x => perto(x) && x.status === "confirmado")
+      .sort((a, b) => (!!b.inst - !!a.inst) || Math.abs(a.amount - base.amount) - Math.abs(b.amount - base.amount))[0];
+    if (lancada) { Object.assign(lancada, { desc: base.desc, raw: base.raw, inst: { n: k, of, group: g } }); return true; }
+    const prevista = D.state.tx.find(x => perto(x) && x.status === "previsto");
+    if (prevista) {
+      Object.assign(prevista, { desc: base.desc, raw: base.raw, cat: base.cat, person: base.person, source: base.source, inst: { n: k, of, group: g } });
+      return true;
+    }
+    D.state.tx.push(Object.assign({}, base, { id: U.uid(), month: mes, date: null, status: "previsto", paid: false, inst: { n: k, of, group: g } }));
+    return true;
+  };
+
+  // Cria o lançamento e, se for parcelado, as parcelas futuras
   D.adicionar = function (t, projetar = true) {
     const base = Object.assign({ id: U.uid(), status: "confirmado", person: "Família", source: "manual" }, t);
     base.amount = U.round(base.amount);
     D.state.tx.push(base);
     if (projetar && base.inst && base.inst.of > base.inst.n) {
       base.inst.group = base.inst.group || U.uid();
-      for (let k = base.inst.n + 1; k <= base.inst.of; k++) {
-        const mes = U.addMes(base.month, k - base.inst.n);
-        const ja = D.state.tx.find(x => x.inst && x.inst.group === base.inst.group && x.inst.n === k);
-        if (ja) continue;
-        // meses que vieram da planilha já têm essa parcela somada
-        if (D.state.tx.some(x => x.month === mes && x.card === base.card && x.source === "planilha" && x.status === "confirmado")) continue;
-        // parcela já prevista pela planilha (mesmo cartão e valor): só ganha o nome da fatura
-        const prevista = D.state.tx.find(x => x.month === mes && x.card === base.card && x.status === "previsto" && x.source === "planilha" && Math.abs(x.amount - base.amount) <= 0.05);
-        if (prevista) {
-          Object.assign(prevista, { desc: base.desc, raw: base.raw, cat: base.cat, person: base.person, source: base.source, inst: { n: k, of: base.inst.of, group: base.inst.group } });
-          continue;
-        }
-        D.state.tx.push(Object.assign({}, base, {
-          id: U.uid(), month: mes, date: null, status: "previsto", paid: false,
-          inst: { n: k, of: base.inst.of, group: base.inst.group },
-        }));
-      }
+      for (let k = base.inst.n + 1; k <= base.inst.of; k++) D.projetarParcela(base, k);
     }
     return base;
+  };
+
+  // Reaplica a regra acima a todas as compras parceladas que já vieram de fatura
+  // (conserta o que foi importado antes de a planilha e a fatura serem ligadas)
+  D.conciliarParcelas = function () {
+    let n = 0;
+    const bases = D.state.tx.filter(t => t.source === "fatura" && t.status === "confirmado" && t.inst && t.inst.group && t.inst.of > t.inst.n && !t.inst.left);
+    for (const b of bases) for (let k = b.inst.n + 1; k <= b.inst.of; k++) if (D.projetarParcela(b, k)) n++;
+    return n;
   };
   D.removerParcelasFuturas = function (t) {
     if (!t.inst || !t.inst.group) return 0;
