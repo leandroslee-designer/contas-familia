@@ -228,6 +228,32 @@
     return mudou;
   };
 
+  // Posição da parcela ("3/10"). Na planilha a coluna ao lado do valor diz quantas parcelas FALTAM
+  // contando a do mês (10 em agosto, 9 em setembro, 8 em outubro), então o app liga os meses
+  // seguidos (mesmo cartão, mesmo valor, faltando uma a mais no mês anterior) para descobrir o número.
+  let idxParc = null, idxChave = "";
+  D.parcelaInfo = function (t) {
+    if (!t.inst) return null;
+    if (!t.inst.left) return { n: t.inst.n, of: t.inst.of, est: false };
+    const chave = D.state.tx.length + ":" + D.state.updatedAt;
+    if (idxChave !== chave) {
+      idxParc = new Map(); idxChave = chave;
+      for (const x of D.state.tx) if (x.inst && x.inst.left) {
+        const k = x.card + "|" + x.month + "|" + (x.inst.of - x.inst.n + 1);
+        (idxParc.get(k) || idxParc.set(k, []).get(k)).push(x);
+      }
+    }
+    let rest = t.inst.of - t.inst.n + 1, n = 1, cur = t;
+    for (let i = 0; i < 120; i++) {
+      const prev = (idxParc.get(cur.card + "|" + U.addMes(cur.month, -1) + "|" + (rest + 1)) || [])
+        .filter(x => Math.abs(x.amount - t.amount) <= 0.02)
+        .sort((a, b) => (b.desc === cur.desc) - (a.desc === cur.desc))[0];
+      if (!prev) break;
+      n++; rest++; cur = prev;
+    }
+    return { n, of: n + (t.inst.of - t.inst.n), est: true };
+  };
+
   // ---------- histórico da planilha ----------
   D.importarHistorico = function (h) {
     const s = D.state;

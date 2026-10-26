@@ -339,8 +339,8 @@
   }
   function textoParcela(t) {
     if (!t.inst) return "";
-    if (t.inst.left) return `<span class="tag p">faltam ${t.inst.of - t.inst.n + 1}</span>`;
-    return `<span class="tag p">${t.inst.n}/${t.inst.of}</span>`;
+    const p = D.parcelaInfo(t);
+    return `<span class="tag p" title="${p.est ? "Número calculado a partir da planilha" : ""}">${p.n}/${p.of}</span>`;
   }
   function linhaTx(t) {
     const data = t.date ? t.date.slice(8, 10) + "/" + t.date.slice(5, 7) : "";
@@ -373,7 +373,7 @@
         <div class="field"><label>Entra no mês</label><input class="input" type="month" id="fMes" value="${f.month}"></div>
       </div>
       <div class="two">
-        <div class="field"><label>Parcela</label><input class="input" id="fParc" placeholder="à vista (ou 1/10)" value="${f.inst && !f.inst.left ? f.inst.n + "/" + f.inst.of : ""}" ${f.inst && f.inst.left ? "disabled" : ""}></div>
+        <div class="field"><label>Parcela</label><input class="input" id="fParc" placeholder="à vista (ou 1/10)" value="${f.inst ? (p => p.n + "/" + p.of)(D.parcelaInfo(f)) : ""}" ${f.inst && f.inst.left ? "disabled" : ""}></div>
         <div class="field"><label>Situação</label><select class="input" id="fSit">
           <option value="confirmado" ${f.status === "confirmado" ? "selected" : ""}>Lançado</option>
           <option value="previsto" ${f.status === "previsto" ? "selected" : ""}>Previsto</option></select></div>
@@ -1113,7 +1113,7 @@
   }
   function exportarCSV() {
     const m = ui.month, linhas = [["Mês", "Data", "Origem", "Categoria", "Descrição", "Pessoa", "Parcela", "Valor", "Situação", "Pago"]];
-    for (const t of D.doMes(m)) linhas.push([m, t.date || "", card(t.card).name, cat(t.cat).name, t.desc, t.person || "", t.inst ? (t.inst.left ? "faltam " + (t.inst.of - t.inst.n + 1) : t.inst.n + "/" + t.inst.of) : "", String(t.amount).replace(".", ","), t.status, t.paid ? "sim" : ""]);
+    for (const t of D.doMes(m)) linhas.push([m, t.date || "", card(t.card).name, cat(t.cat).name, t.desc, t.person || "", t.inst ? (p => p.n + "/" + p.of)(D.parcelaInfo(t)) : "", String(t.amount).replace(".", ","), t.status, t.paid ? "sim" : ""]);
     baixar(`contas-${m}.csv`, "﻿" + linhas.map(l => l.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\r\n"), "text/csv");
   }
 
