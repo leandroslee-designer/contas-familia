@@ -1103,7 +1103,28 @@
     const e = el.querySelector("#nEntrar"); if (e) e.onclick = () => N.entrar();
     const s = el.querySelector("#nSair"); if (s) s.onclick = () => { if (confirm("Sair? Os dados continuam neste aparelho, mas param de sincronizar.")) N.sair(); };
   }
-  window.NUVEM.onChange(() => { cartaoNuvem(); statusArquivo(); if (ui.page === "inicio" && !D.state.tx.length) render(); });
+  // Confere uma única vez as parcelas que já tinham sido importadas de fatura: liga cada uma à linha do
+  // mês seguinte na planilha (sem somar duas vezes) e cria as que faltavam. Fica registrado em
+  // settings.parcelasV2 (sincronizado) e dá para desfazer pelo aviso.
+  function conciliarUmaVez() {
+    const s = D.state.settings;
+    if (s.parcelasV2 || !D.state.tx.length) return;
+    s.parcelasV2 = Date.now();
+    const antes = JSON.stringify(D.state.tx);
+    const totalAntes = D.total(D.state.tx);
+    const n = D.conciliarParcelas();
+    D.save(true);
+    if (!n) return;
+    const dif = U.round(D.total(D.state.tx) - totalAntes);
+    toast(`Parcelas conferidas: ${n} ligadas${dif ? " (" + (dif > 0 ? "+" : "") + U.brl(dif) + " no total dos meses)" : ""}`, "Desfazer", () => {
+      D.state.tx = JSON.parse(antes); D.save(true); render();
+    });
+    render();
+  }
+  window.NUVEM.onChange(() => {
+    cartaoNuvem(); statusArquivo(); if (ui.page === "inicio" && !D.state.tx.length) render();
+    if (window.NUVEM.estado === "ok") conciliarUmaVez();
+  });
 
   function baixar(nome, conteudo, tipo) {
     const a = document.createElement("a");
@@ -1200,6 +1221,7 @@
   render();
   iniciarArquivo();
   window.NUVEM.iniciar();
+  if (!window.NUVEM.configurado()) conciliarUmaVez();
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => { });
   window.APP = { render, ui };
 })();
